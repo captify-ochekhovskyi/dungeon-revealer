@@ -15,7 +15,7 @@ import { useGesture } from "react-use-gesture";
 import styled from "@emotion/styled/macro";
 import { darken, lighten } from "polished";
 import debounce from "lodash/debounce";
-import { getOptimalDimensions, loadImage } from "./util";
+import { getOptimalDimensions, loadImage, loadVideo } from "./util";
 import { useStaticRef } from "./hooks/use-static-ref";
 import { buildUrl } from "./public-url";
 import { CanvasText, CanvasTextRef } from "./canvas-text";
@@ -1429,8 +1429,8 @@ const WallRenderer = React.memo(
 
 const MapRenderer = (props: {
   map: mapView_MapRendererFragment$key;
-  mapImage: HTMLImageElement;
-  mapImageTexture: THREE.Texture;
+  mapImage: HTMLImageElement | HTMLVideoElement;
+  mapImageTexture: THREE.Texture | THREE.VideoTexture;
   fogTexture: THREE.Texture;
   wallTexture: THREE.Texture;
   wallImage: HTMLImageElement | null;
@@ -1441,6 +1441,7 @@ const MapRenderer = (props: {
   fogOpacity: number;
   wallOpacity: number;
   markerRadius: number;
+  mapFileType: string;
 }) => {
   const map = useFragment(MapRendererFragment, props.map);
   const isDungeonMaster = React.useContext(IsDungeonMasterContext);
@@ -1464,8 +1465,8 @@ const MapRenderer = (props: {
             grid={map.grid}
             dimensions={props.dimensions}
             factor={props.factor}
-            imageHeight={props.mapImage.naturalHeight}
-            imageWidth={props.mapImage.naturalWidth}
+            imageHeight={props.mapImage.height}
+            imageWidth={props.mapImage.width}
           />
         ) : null}
         <FogRenderer
@@ -1517,10 +1518,11 @@ const MapViewRendererFragment = graphql`
 
 const MapViewRenderer = (props: {
   map: mapView_MapViewRendererFragment$key;
-  mapImage: HTMLImageElement;
-  fogImage: HTMLImageElement | null;
-  wallImage: HTMLImageElement | null;
+  mapImage: HTMLImageElement | HTMLVideoElement;
+  fogImage: HTMLImageElement | HTMLVideoElement | null;
+  wallImage: HTMLImageElement | HTMLVideoElement | null;
   controlRef?: React.MutableRefObject<MapControlInterface | null>;
+  mapFileType: string;
   activeTool: MapTool | null;
   fogOpacity: number;
   wallOpacity: number;
@@ -1543,8 +1545,8 @@ const MapViewRenderer = (props: {
   const optimalDimensions = React.useMemo(
     () =>
       getOptimalDimensions(
-        props.mapImage.naturalWidth,
-        props.mapImage.naturalHeight,
+        props.mapImage.width,
+        props.mapImage.height,
         maximumSideLength,
         maximumSideLength
       ),
@@ -1570,6 +1572,14 @@ const MapViewRenderer = (props: {
     canvas.height = optimalDimensions.height;
     return canvas;
   });
+
+  if (props.mapFileType == "mp4") {
+    var [mapTexture] = React.useState(
+      () => new THREE.VideoTexture(props.mapImage)
+    );
+  } else {
+    var [mapTexture] = React.useState(() => new THREE.CanvasTexture(mapCanvas));
+  }
 
   const [mapTexture] = React.useState(() => new THREE.CanvasTexture(mapCanvas));
   const [fogTexture] = React.useState(() => new THREE.CanvasTexture(fogCanvas));
@@ -1634,8 +1644,8 @@ const MapViewRenderer = (props: {
 
   const dimensions = React.useMemo(() => {
     return getOptimalDimensions(
-      props.mapImage.naturalWidth,
-      props.mapImage.naturalHeight,
+      props.mapImage.width,
+      props.mapImage.height,
       viewport.width * 0.95,
       viewport.height * 0.95
     );
@@ -1873,6 +1883,7 @@ const MapViewRenderer = (props: {
           markerRadius={20}
           scale={spring.scale}
           dimensions={dimensions}
+          mapFileType={props.mapFileType}
           factor={
             dimensions.width / props.mapImage.width / optimalDimensions.ratio
           }
@@ -1901,6 +1912,7 @@ const MapFragment = graphql`
   fragment mapView_MapFragment on Map {
     id
     mapImageUrl
+    mapPath
     fogProgressImageUrl
     fogLiveImageUrl
     wallProgressImageUrl
@@ -1923,12 +1935,13 @@ export const MapView = (props: {
 
   const map = useFragment(MapFragment, props.map);
 
-  const [mapImage, setMapImage] = useResetState<HTMLImageElement | null>(null, [
-    map.id,
-  ]);
-  const [fogImage, setFogImage] = useResetState<HTMLImageElement | null>(null, [
-    map.id,
-  ]);
+  const [mapImage, setMapImage] = useResetState<
+    HTMLImageElement | HTMLVideoElement | null
+  >(null, [map.id]);
+
+  const [fogImage, setFogImage] = useResetState<
+    HTMLImageElement | HTMLVideoElement | null
+  >(null, [map.id]);
 
   const [wallImage, setWallImage] = useResetState<HTMLImageElement | null>(
     null,
@@ -1943,8 +1956,14 @@ export const MapView = (props: {
 
   const isDungeonMaster = React.useContext(IsDungeonMasterContext);
 
+  const mapFileType = map.mapPath.split(".")[1];
+
   React.useEffect(() => {
-    const mapImageTask = loadImage(map.mapImageUrl);
+    if (mapFileType == "mp4") {
+      var mapImageTask = loadVideo(map.mapImageUrl);
+    } else {
+      var mapImageTask = loadImage(map.mapImageUrl);
+    }
 
     cleanupMapImage.current = () => {
       mapImageTask.cancel();
@@ -1952,6 +1971,12 @@ export const MapView = (props: {
 
     mapImageTask.promise
       .then((mapImage) => {
+        if (mapFileType == "mp4") {
+          mapImage.width = mapImage.videoWidth;
+          mapImage.height = mapImage.videoHeight;
+          const volume = window.localStorage.getItem("volume");
+          mapImage.volume = volume ?? 0.1;
+        }
         setMapImage(mapImage);
       })
       .catch((err) => {
@@ -1960,6 +1985,26 @@ export const MapView = (props: {
 
     return () => cleanupMapImage.current();
   }, [map.mapImageUrl]);
+
+  const videoControlHendler = React.useCallback(
+    (ev) => {
+      if (mapImage) {
+        if (ev.detail.volume) {
+          mapImage.volume = ev.detail.volume;
+        }
+        if (ev.detail.pause) {
+          mapImage.pause();
+        }
+        if (ev.detail.play) {
+          mapImage.play();
+        }
+        setMapImage(mapImage);
+      }
+    },
+    [mapImage]
+  );
+
+  document.addEventListener("videoControl", videoControlHendler);
 
   const initialFog = React.useRef<boolean>(false);
 
@@ -2078,6 +2123,7 @@ export const MapView = (props: {
             mapImage={mapImage}
             fogImage={fogImage}
             wallImage={wallImage}
+            mapFileType={mapFileType}
             controlRef={props.controlRef}
             fogOpacity={props.fogOpacity}
             wallOpacity={props.wallOpacity}
