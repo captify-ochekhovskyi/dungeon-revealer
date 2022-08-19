@@ -1581,7 +1581,6 @@ const MapViewRenderer = (props: {
     var [mapTexture] = React.useState(() => new THREE.CanvasTexture(mapCanvas));
   }
 
-  const [mapTexture] = React.useState(() => new THREE.CanvasTexture(mapCanvas));
   const [fogTexture] = React.useState(() => new THREE.CanvasTexture(fogCanvas));
   const [wallTexture] = React.useState(
     () => new THREE.CanvasTexture(wallCanvas)
