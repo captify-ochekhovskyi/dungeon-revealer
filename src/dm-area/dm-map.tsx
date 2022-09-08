@@ -947,17 +947,15 @@ export const DmMap = (props: {
                           if (!context) {
                             return;
                           }
-                          const canvasContext =
-                            context.fogCanvas.getContext("2d")!;
-                          const transform = canvasContext.getTransform();
-                          canvasContext.resetTransform();
-
                           const wallState = JSON.parse(
                             localStorage.getItem("brushTool")
                           ).wall;
+
                           if (wallState) {
                             const canvasContext =
                               context.wallCanvas.getContext("2d")!;
+                            var transform = canvasContext.getTransform();
+                            canvasContext.resetTransform();
                             applyFogRectangle(
                               FogMode.shroud,
                               true,
@@ -973,6 +971,7 @@ export const DmMap = (props: {
                           } else {
                             const canvasContext =
                               context.fogCanvas.getContext("2d")!;
+                            var transform = canvasContext.getTransform();
                             applyFogRectangle(
                               FogMode.shroud,
                               false,
@@ -985,6 +984,7 @@ export const DmMap = (props: {
                             );
                             context.fogTexture.needsUpdate = true;
                             props.saveFogProgress(context.fogCanvas);
+                            canvasContext.setTransform(transform);
                           }
                         },
                       })
@@ -1006,6 +1006,7 @@ export const DmMap = (props: {
                           if (!context) {
                             return;
                           }
+
                           const canvasContext =
                             context.fogCanvas.getContext("2d")!;
 
@@ -1015,6 +1016,7 @@ export const DmMap = (props: {
                           const wallState = JSON.parse(
                             localStorage.getItem("brushTool")
                           ).wall;
+
                           if (wallState) {
                             const canvasContext =
                               context.wallCanvas.getContext("2d")!;
@@ -1071,19 +1073,32 @@ export const DmMap = (props: {
                       context?.mapState.rotate.finish();
                       controlRef.current?.controls.rotate(+90);
                       // fix for drawing tools
-                      if (context?.fogCanvas) {
-                        const fogCanvas = context.fogCanvas;
-                        const fogCanvasContext = fogCanvas.getContext("2d");
-                        fogCanvasContext?.translate(
-                          fogCanvas.width / 2,
-                          fogCanvas.height / 2
-                        );
-                        fogCanvasContext?.rotate((+90 * Math.PI) / 180);
-                        fogCanvasContext?.translate(
-                          -fogCanvas.width / 2,
-                          -fogCanvas.height / 2
-                        );
-                      }
+                      const fogCanvas = context.fogCanvas;
+                      const wallCanvas = context.wallCanvas;
+
+                      const fogCanvasContext = fogCanvas.getContext("2d");
+                      const wallCanvasContext = wallCanvas.getContext("2d");
+
+                      fogCanvasContext?.translate(
+                        fogCanvas.width / 2,
+                        fogCanvas.height / 2
+                      );
+                      wallCanvasContext?.translate(
+                        wallCanvas.width / 2,
+                        wallCanvas.height / 2
+                      );
+
+                      fogCanvasContext?.rotate((+90 * Math.PI) / 180);
+                      wallCanvasContext?.rotate((+90 * Math.PI) / 180);
+
+                      fogCanvasContext?.translate(
+                        -fogCanvas.width / 2,
+                        -fogCanvas.height / 2
+                      );
+                      wallCanvasContext?.translate(
+                        -wallCanvas.width / 2,
+                        -wallCanvas.height / 2
+                      );
                     }}
                   >
                     <Icon.RotateCCW boxSize="20px" />
@@ -1100,19 +1115,32 @@ export const DmMap = (props: {
                       context?.mapState.rotate.finish();
                       controlRef.current?.controls.rotate(-90);
                       // fix for drawing tools
-                      if (context?.fogCanvas) {
-                        const fogCanvas = context.fogCanvas;
-                        const fogCanvasContext = fogCanvas.getContext("2d");
-                        fogCanvasContext?.translate(
-                          fogCanvas.width / 2,
-                          fogCanvas.height / 2
-                        );
-                        fogCanvasContext?.rotate((-90 * Math.PI) / 180);
-                        fogCanvasContext?.translate(
-                          -fogCanvas.width / 2,
-                          -fogCanvas.height / 2
-                        );
-                      }
+                      const fogCanvas = context.fogCanvas;
+                      const wallCanvas = context.wallCanvas;
+
+                      const fogCanvasContext = fogCanvas.getContext("2d");
+                      const wallCanvasContext = wallCanvas.getContext("2d");
+
+                      fogCanvasContext?.translate(
+                        fogCanvas.width / 2,
+                        fogCanvas.height / 2
+                      );
+                      wallCanvasContext?.translate(
+                        wallCanvas.width / 2,
+                        wallCanvas.height / 2
+                      );
+
+                      fogCanvasContext?.rotate((-90 * Math.PI) / 180);
+                      wallCanvasContext?.rotate((-90 * Math.PI) / 180);
+
+                      fogCanvasContext?.translate(
+                        -fogCanvas.width / 2,
+                        -fogCanvas.height / 2
+                      );
+                      wallCanvasContext?.translate(
+                        -wallCanvas.width / 2,
+                        -wallCanvas.height / 2
+                      );
                     }}
                   >
                     <Icon.RotateCW boxSize="20px" />
