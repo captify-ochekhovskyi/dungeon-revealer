@@ -326,6 +326,32 @@ const PlayerMap = ({
                         </Toolbar.LongPressButton>
                       </Toolbar.Item>
                       <Toolbar.Item isActive>
+                        <Toolbar.Button
+                          onClick={() => {
+                            controlRef.current
+                              ?.getContext()
+                              .mapState.rotate.finish();
+                            controlRef.current?.controls.rotate(-90);
+                          }}
+                        >
+                          <Icon.RotateCCW boxSize="20px" />
+                          <Icon.Label>Rotate</Icon.Label>
+                        </Toolbar.Button>
+                      </Toolbar.Item>
+                      <Toolbar.Item isActive>
+                        <Toolbar.Button
+                          onClick={() => {
+                            controlRef.current
+                              ?.getContext()
+                              .mapState.rotate.finish();
+                            controlRef.current?.controls.rotate(+90);
+                          }}
+                        >
+                          <Icon.RotateCW boxSize="20px" />
+                          <Icon.Label>Rotate</Icon.Label>
+                        </Toolbar.Button>
+                      </Toolbar.Item>
+                      <Toolbar.Item isActive>
                         <Toolbar.LongPressButton
                           onClick={() => {
                             noteWindowActions.showNoteInWindow(

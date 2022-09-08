@@ -947,6 +947,11 @@ export const DmMap = (props: {
                           if (!context) {
                             return;
                           }
+                          const canvasContext =
+                            context.fogCanvas.getContext("2d")!;
+                          const transform = canvasContext.getTransform();
+                          canvasContext.resetTransform();
+
                           const wallState = JSON.parse(
                             localStorage.getItem("brushTool")
                           ).wall;
@@ -1001,6 +1006,11 @@ export const DmMap = (props: {
                           if (!context) {
                             return;
                           }
+                          const canvasContext =
+                            context.fogCanvas.getContext("2d")!;
+
+                          const transform = canvasContext.getTransform();
+                          canvasContext.resetTransform();
 
                           const wallState = JSON.parse(
                             localStorage.getItem("brushTool")
@@ -1036,6 +1046,7 @@ export const DmMap = (props: {
                             context.fogTexture.needsUpdate = true;
                             props.saveFogProgress(context.fogCanvas);
                           }
+                          canvasContext.setTransform(transform);
                         },
                       })
                     }
@@ -1048,6 +1059,69 @@ export const DmMap = (props: {
             </Toolbar>
           </LeftToolbarContainer>
           <BottomToolbarContainer>
+            <Toolbar horizontal>
+              <Toolbar.Group>
+                <Toolbar.Item isActive>
+                  <Toolbar.Button
+                    onClick={() => {
+                      const context = controlRef.current?.getContext();
+                      if (!context) {
+                        return;
+                      }
+                      context?.mapState.rotate.finish();
+                      controlRef.current?.controls.rotate(+90);
+                      // fix for drawing tools
+                      if (context?.fogCanvas) {
+                        const fogCanvas = context.fogCanvas;
+                        const fogCanvasContext = fogCanvas.getContext("2d");
+                        fogCanvasContext?.translate(
+                          fogCanvas.width / 2,
+                          fogCanvas.height / 2
+                        );
+                        fogCanvasContext?.rotate((+90 * Math.PI) / 180);
+                        fogCanvasContext?.translate(
+                          -fogCanvas.width / 2,
+                          -fogCanvas.height / 2
+                        );
+                      }
+                    }}
+                  >
+                    <Icon.RotateCCW boxSize="20px" />
+                    <Icon.Label>Rotate</Icon.Label>
+                  </Toolbar.Button>
+                </Toolbar.Item>
+                <Toolbar.Item isActive>
+                  <Toolbar.Button
+                    onClick={() => {
+                      const context = controlRef.current?.getContext();
+                      if (!context) {
+                        return;
+                      }
+                      context?.mapState.rotate.finish();
+                      controlRef.current?.controls.rotate(-90);
+                      // fix for drawing tools
+                      if (context?.fogCanvas) {
+                        const fogCanvas = context.fogCanvas;
+                        const fogCanvasContext = fogCanvas.getContext("2d");
+                        fogCanvasContext?.translate(
+                          fogCanvas.width / 2,
+                          fogCanvas.height / 2
+                        );
+                        fogCanvasContext?.rotate((-90 * Math.PI) / 180);
+                        fogCanvasContext?.translate(
+                          -fogCanvas.width / 2,
+                          -fogCanvas.height / 2
+                        );
+                      }
+                    }}
+                  >
+                    <Icon.RotateCW boxSize="20px" />
+                    <Icon.Label>Rotate</Icon.Label>
+                  </Toolbar.Button>
+                </Toolbar.Item>
+              </Toolbar.Group>
+            </Toolbar>
+            <MarginLeftDiv />
             <Toolbar horizontal>
               <Toolbar.Group>
                 <GridSettingButton

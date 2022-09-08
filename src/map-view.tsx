@@ -244,10 +244,19 @@ const ShadowsRenderer = (props: {
 
 const TokenListRenderer = (props: {
   map: mapView_TokenListRendererFragment$key;
+  rotate: SpringValue<number>;
 }) => {
   const map = useFragment(TokenListRendererFragment, props.map);
   return (
-    <group renderOrder={LayerRenderOrder.token}>
+    <animated.group
+      renderOrder={LayerRenderOrder.token}
+      // @ts-expect-error:
+      rotation={props.rotate.to<[number, number, number]>((value) => [
+        0,
+        0,
+        (value * Math.PI) / 180,
+      ])}
+    >
       {map.tokens.map((token) => (
         <TokenRenderer
           id={token.id}
@@ -256,7 +265,7 @@ const TokenListRenderer = (props: {
           columnWidth={map.grid?.columnWidth ?? null}
         />
       ))}
-    </group>
+    </animated.group>
   );
 };
 
@@ -749,10 +758,18 @@ const TokenRenderer = (props: {
         event.stopPropagation();
 
         const mapScale = sharedMapState.mapState.scale.get();
+        const mapRotate =
+          (sharedMapState.mapState.rotate.get() * Math.PI) / 180;
+
+        const xN =
+          movement[0] * Math.cos(mapRotate) - movement[1] * Math.sin(mapRotate);
+        const yN =
+          movement[0] * Math.sin(mapRotate) + movement[1] * Math.cos(mapRotate);
+
         const newX =
-          memo[0] + movement[0] / sharedMapState.viewport.factor / mapScale[0];
+          memo[0] + xN / sharedMapState.viewport.factor / mapScale[0];
         const newY =
-          memo[1] - movement[1] / sharedMapState.viewport.factor / mapScale[1];
+          memo[1] - yN / sharedMapState.viewport.factor / mapScale[1];
 
         const [x, y] = sharedMapState.helper.coordinates.canvasToImage(
           sharedMapState.helper.coordinates.threeToCanvas([newX, newY])
@@ -1320,6 +1337,7 @@ const MapPingRenderer = (props: {
   factor: number;
   dimensions: Dimensions;
   markerRadius: number;
+  rotate: SpringValue<number>;
 }) => {
   const map = useFragment(MapPingRenderer_MapFragment, props.map);
   const [markedAreas, setMarkedAreas] = React.useState<
@@ -1346,7 +1364,15 @@ const MapPingRenderer = (props: {
   );
 
   return (
-    <group renderOrder={LayerRenderOrder.marker}>
+    <animated.group
+      renderOrder={LayerRenderOrder.marker}
+      // @ts-expect-error:
+      rotation={props.rotate.to<[number, number, number]>((value) => [
+        0,
+        0,
+        (value * Math.PI) / 180, // Convert degrees to radians
+      ])}
+    >
       {markedAreas.map((markedArea) => (
         <MarkedAreaRenderer
           key={markedArea.id}
@@ -1362,7 +1388,7 @@ const MapPingRenderer = (props: {
           radius={props.markerRadius}
         />
       ))}
-    </group>
+    </animated.group>
   );
 };
 
@@ -1440,6 +1466,7 @@ const MapRenderer = (props: {
   dimensions: Dimensions;
   fogOpacity: number;
   wallOpacity: number;
+  rotate: SpringValue<number>;
   markerRadius: number;
   mapFileType: string;
 }) => {
@@ -1451,7 +1478,15 @@ const MapRenderer = (props: {
 
   return (
     <>
-      <group renderOrder={LayerRenderOrder.map}>
+      <animated.group
+        renderOrder={LayerRenderOrder.map}
+        // @ts-expect-error:
+        rotation={props.rotate.to<[number, number, number]>((value) => [
+          0,
+          0,
+          (value * Math.PI) / 180,
+        ])}
+      >
         <mesh receiveShadow={true}>
           <planeBufferGeometry
             attach="geometry"
@@ -1489,9 +1524,10 @@ const MapRenderer = (props: {
           sfX={sfX}
           sfY={sfY}
         />
-      </group>
-      <TokenListRenderer map={map} />
+      </animated.group>
+      <TokenListRenderer map={map} rotate={props.rotate} />
       <MapPingRenderer
+        rotate={props.rotate}
         map={map}
         dimensions={props.dimensions}
         factor={props.factor}
@@ -1506,6 +1542,7 @@ export type MapControlInterface = {
     center: () => void;
     zoomIn: () => void;
     zoomOut: () => void;
+    rotate: (angle: number) => void;
   };
   getContext: () => SharedMapToolState;
 };
@@ -1535,6 +1572,7 @@ const MapViewRenderer = (props: {
   const [spring, set] = useSpring(() => ({
     scale: [1, 1, 1] as [number, number, number],
     position: [0, 0, 0] as [number, number, number],
+    rotate: 0 as number,
   }));
 
   // maximumSideLength * maximumSideLength = MAXIMUM_TEXTURE_SIZE * 1024
@@ -1590,6 +1628,7 @@ const MapViewRenderer = (props: {
     set({
       scale: [1, 1, 1],
       position: [0, 0, 0],
+      rotate: 0,
     });
   }, [mapTexture, set]);
 
@@ -1798,6 +1837,11 @@ const MapViewRenderer = (props: {
             var wheelScrollOut = new Event("wheelScrollOut");
             window.document.dispatchEvent(wheelScrollOut);
           },
+          rotate: (angle: number) => {
+            set({
+              rotate: Math.round(spring.rotate.get() + angle),
+            });
+          },
         },
         getContext: () => toolContext,
       };
@@ -1881,6 +1925,7 @@ const MapViewRenderer = (props: {
           viewport={viewport}
           markerRadius={20}
           scale={spring.scale}
+          rotate={spring.rotate}
           dimensions={dimensions}
           mapFileType={props.mapFileType}
           factor={

@@ -31,6 +31,7 @@ export const Rectangle = (props: {
   p1: Point;
   p2: Point;
   borderColor: string;
+  rotation: number;
 }): React.ReactElement => {
   const getPoints = React.useCallback<
     () => Array<[number, number, number]>
@@ -54,6 +55,7 @@ export const Rectangle = (props: {
   });
   return (
     <ThreeLine
+      rotation={[0, 0, (props.rotation * Math.PI) / 180]}
       points={points}
       color={props.borderColor}
       ref={ref}
@@ -254,10 +256,12 @@ export const AreaSelectMapTool: MapTool = {
           return;
         }
         if (localState.lastPointerPosition) {
-
           const fogCanvasContext = props.mapContext.fogCanvas.getContext("2d");
-          const wallCanvasContext = props.mapContext.wallCanvas.getContext("2d");
-          const canvasContext = brushContext.state.wall? wallCanvasContext: fogCanvasContext;
+          const wallCanvasContext =
+            props.mapContext.wallCanvas.getContext("2d");
+          const canvasContext = brushContext.state.wall
+            ? wallCanvasContext
+            : fogCanvasContext;
 
           let p1 = props.mapContext.pointerPosition.get();
           let p2 = localState.lastPointerPosition.get();
@@ -276,7 +280,9 @@ export const AreaSelectMapTool: MapTool = {
           );
           props.mapContext.fogTexture.needsUpdate = true;
           props.mapContext.wallTexture.needsUpdate = true;
-          const canvas = brushContext.state.wall? props.mapContext.wallCanvas : props.mapContext.fogCanvas;
+          const canvas = brushContext.state.wall
+            ? props.mapContext.wallCanvas
+            : props.mapContext.fogCanvas;
           brushContext.handlers.onDrawEnd(canvas);
         }
 
@@ -329,6 +335,7 @@ export const AreaSelectMapTool: MapTool = {
             p1={localState.lastPointerPosition}
             p2={props.mapContext.pointerPosition}
             borderColor="red"
+            rotation={0}
           />
         </>
       );
