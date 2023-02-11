@@ -8,7 +8,6 @@ COPY . .
 
 RUN npm install
 
-
 FROM dependency-builder as application-builder
 
 ARG SKIP_BUILD
