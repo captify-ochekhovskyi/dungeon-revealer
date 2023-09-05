@@ -12,7 +12,9 @@ export type SharedMapToolState = {
   mapImage: HTMLImageElement;
   mapCanvas: HTMLCanvasElement;
   fogCanvas: HTMLCanvasElement;
+  wallCanvas: HTMLCanvasElement;
   fogTexture: THREE.CanvasTexture;
+  wallTexture: THREE.CanvasTexture;
   mapState: {
     position: SpringValue<Vector3D>;
     scale: SpringValue<Vector3D>;
@@ -64,6 +66,7 @@ export type MapToolMapGestureHandlers = Handlers<{
   onPointerMove: PointerEvent;
   onDrag: PointerEvent;
   onClick: PointerEvent;
+  onWheelEnd: WheelEvent;
 }>;
 
 /**

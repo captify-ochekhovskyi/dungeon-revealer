@@ -43,7 +43,7 @@ import {
 } from "../map-tools/configure-grid-map-tool";
 import { MapControlInterface } from "../map-view";
 import { ConditionalWrap } from "../util";
-import { BrushShape, FogMode } from "../canvas-draw-utilities";
+import { BrushShape, FogMode, Wall } from "../canvas-draw-utilities";
 import {
   AreaSelectContext,
   AreaSelectContextProvider,
@@ -90,6 +90,7 @@ import { dmMap_ShowGridSettingsPopupMapFragment$key } from "./__generated__/dmMa
 import { dmMap_ShowGridSettingsPopupGridFragment$key } from "./__generated__/dmMap_ShowGridSettingsPopupGridFragment.graphql";
 import { dmMap_GridSettingButton_MapFragment$key } from "./__generated__/dmMap_GridSettingButton_MapFragment.graphql";
 import { dmMap_mapUpdateGridMutation } from "./__generated__/dmMap_mapUpdateGridMutation.graphql";
+import { dmMap_mapUpdateLightMutation } from "./__generated__/dmMap_mapUpdateLightMutation.graphql";
 import { dmMap_GridConfigurator_MapFragment$key } from "./__generated__/dmMap_GridConfigurator_MapFragment.graphql";
 import { dmMap_MapPingMutation } from "./__generated__/dmMap_MapPingMutation.graphql";
 import { UpdateTokenContext } from "../update-token-context";
@@ -229,6 +230,14 @@ const ShroudRevealSettings = (): React.ReactElement => {
           <Icon.Label>Shroud</Icon.Label>
         </Toolbar.Button>
       </Toolbar.Item>
+      <Toolbar.Item isActive={state.wall === Wall}>
+        <Toolbar.Button
+          onClick={() => setState((state) => ({ ...state, wall: !state.wall }))}
+        >
+          <Icon.Wall boxSize="20px" />
+          <Icon.Label>Wall</Icon.Label>
+        </Toolbar.Button>
+      </Toolbar.Item>
     </>
   );
 };
@@ -258,6 +267,55 @@ const MapUpdateGridMutation = graphql`
     }
   }
 `;
+
+const LightMapFragment = graphql`
+  fragment dmMap_LightMapFragment on Map {
+    id
+    light
+  }
+`;
+
+const MapUpdateLightMutation = graphql`
+  mutation dmMap_mapUpdateLightMutation($input: MapUpdateLightInput!) {
+    mapUpdateLight(input: $input) {
+      __typename
+    }
+  }
+`;
+
+const SwitchLightButton = React.memo(
+  (props: { map: dmMap_DMMapFragment$key }) => {
+    const map = useFragment(LightMapFragment, props.map);
+    const [mapUpdateLight] = useMutation<dmMap_mapUpdateLightMutation>(
+      MapUpdateLightMutation
+    );
+    const [light, setLight] = useResetState(map.light, []);
+    const syncState = useDebounceCallback(() => {
+      mapUpdateLight({
+        variables: {
+          input: {
+            mapId: map.id,
+            light: light,
+          },
+        },
+      });
+    }, 300);
+
+    return (
+      <Toolbar.Item isActive={light === true}>
+        <Toolbar.Button
+          onClick={() => {
+            setLight(!light);
+            syncState();
+          }}
+        >
+          <Icon.Light boxSize="20px" />
+          <Icon.Label>Light</Icon.Label>
+        </Toolbar.Button>
+      </Toolbar.Item>
+    );
+  }
+);
 
 const ShowGridSettingsPopup = React.memo(
   (props: {
@@ -593,6 +651,7 @@ const MapPingMutation = graphql`
 const DMMapFragment = graphql`
   fragment dmMap_DMMapFragment on Map {
     id
+    light
     grid {
       offsetX
       offsetY
@@ -603,6 +662,7 @@ const DMMapFragment = graphql`
     ...mapContextMenuRenderer_MapFragment
     ...dmMap_GridSettingButton_MapFragment
     ...dmMap_GridConfigurator_MapFragment
+    ...dmMap_LightMapFragment
   }
 `;
 
@@ -615,7 +675,9 @@ export const DmMap = (props: {
   openNotes: () => void;
   openMediaLibrary: () => void;
   sendLiveMap: (image: HTMLCanvasElement) => void;
+  sendLiveWall: (image: HTMLCanvasElement) => void;
   saveFogProgress: (image: HTMLCanvasElement) => void;
+  saveWallProgress: (image: HTMLCanvasElement) => void;
   updateToken: (
     id: string,
     changes: Omit<Partial<MapTokenEntity>, "id">
@@ -649,11 +711,13 @@ export const DmMap = (props: {
     if (!controlRef.current || !asyncClipBoardApi) {
       return;
     }
-    const { mapCanvas, fogCanvas } = controlRef.current.getContext();
+    const { mapCanvas, fogCanvas, wallCanvas } =
+      controlRef.current.getContext();
     const canvas = new OffscreenCanvas(mapCanvas.width, mapCanvas.height);
     const context = canvas.getContext("2d")!;
     context.drawImage(mapCanvas, 0, 0);
     context.drawImage(fogCanvas, 0, 0);
+    context.drawImage(wallCanvas, 0, 0);
 
     const { clipboard, ClipboardItem } = asyncClipBoardApi;
     canvas.convertToBlob().then((blob) => {
@@ -678,6 +742,7 @@ export const DmMap = (props: {
 
   const isConfiguringGrid = userSelectedTool === ConfigureGridMapTool;
   const isConfiguringGridRef = React.useRef(isConfiguringGrid);
+
   React.useEffect(() => {
     isConfiguringGridRef.current = isConfiguringGrid;
   });
@@ -711,6 +776,7 @@ export const DmMap = (props: {
               return;
             }
             props.sendLiveMap(context.fogCanvas);
+            props.sendLiveWall(context.wallCanvas);
           }
           break;
         }
@@ -722,7 +788,6 @@ export const DmMap = (props: {
   }, []);
 
   const [confirmDialogNode, showDialog] = useConfirmationDialog();
-
   const [configureGridMapToolState, setConfigureGridMapToolState] =
     useResetState<ConfigureMapToolState>(
       () => ({
@@ -768,7 +833,14 @@ export const DmMap = (props: {
           {
             onDrawEnd: (canvas) => {
               // TODO: toggle between instant send and incremental send
-              props.saveFogProgress(canvas);
+              const wallState = JSON.parse(
+                localStorage.getItem("brushTool")
+              ).wall;
+              if (wallState) {
+                props.saveWallProgress(canvas);
+              } else {
+                props.saveFogProgress(canvas);
+              }
             },
           },
         ] as ComponentWithPropsTuple<
@@ -825,6 +897,7 @@ export const DmMap = (props: {
             SharedTokenStateStoreContext,
           ]}
           fogOpacity={0.5}
+          wallOpacity={0.5}
         />
       </React.Suspense>
 
@@ -849,6 +922,9 @@ export const DmMap = (props: {
                 <ShroudRevealSettings />
               </Toolbar.Group>
               <Toolbar.Group divider>
+                <SwitchLightButton map={map} />
+              </Toolbar.Group>
+              <Toolbar.Group divider>
                 <Toolbar.Item isActive>
                   <Toolbar.Button
                     onClick={() =>
@@ -857,20 +933,45 @@ export const DmMap = (props: {
                         body: "Do you really want to shroud the whole map?",
                         onConfirm: () => {
                           // TODO: this should be less verbose
+
                           const context = controlRef.current?.getContext();
                           if (!context) {
                             return;
                           }
-                          const canvasContext =
-                            context.fogCanvas.getContext("2d")!;
-                          applyFogRectangle(
-                            FogMode.shroud,
-                            [0, 0],
-                            [context.fogCanvas.width, context.fogCanvas.height],
-                            canvasContext
-                          );
-                          context.fogTexture.needsUpdate = true;
-                          props.saveFogProgress(context.fogCanvas);
+                          const wallState = JSON.parse(
+                            localStorage.getItem("brushTool")
+                          ).wall;
+                          if (wallState) {
+                            const canvasContext =
+                              context.wallCanvas.getContext("2d")!;
+                            applyFogRectangle(
+                              FogMode.shroud,
+                              true,
+                              [0, 0],
+                              [
+                                context.wallCanvas.width,
+                                context.wallCanvas.height,
+                              ],
+                              canvasContext
+                            );
+                            context.wallTexture.needsUpdate = true;
+                            props.saveWallProgress(context.wallCanvas);
+                          } else {
+                            const canvasContext =
+                              context.fogCanvas.getContext("2d")!;
+                            applyFogRectangle(
+                              FogMode.shroud,
+                              false,
+                              [0, 0],
+                              [
+                                context.fogCanvas.width,
+                                context.fogCanvas.height,
+                              ],
+                              canvasContext
+                            );
+                            context.fogTexture.needsUpdate = true;
+                            props.saveFogProgress(context.fogCanvas);
+                          }
                         },
                       })
                     }
@@ -891,16 +992,41 @@ export const DmMap = (props: {
                           if (!context) {
                             return;
                           }
-                          const canvasContext =
-                            context.fogCanvas.getContext("2d")!;
-                          applyFogRectangle(
-                            FogMode.clear,
-                            [0, 0],
-                            [context.fogCanvas.width, context.fogCanvas.height],
-                            canvasContext
-                          );
-                          context.fogTexture.needsUpdate = true;
-                          props.saveFogProgress(context.fogCanvas);
+
+                          const wallState = JSON.parse(
+                            localStorage.getItem("brushTool")
+                          ).wall;
+                          if (wallState) {
+                            const canvasContext =
+                              context.wallCanvas.getContext("2d")!;
+                            applyFogRectangle(
+                              FogMode.clear,
+                              false,
+                              [0, 0],
+                              [
+                                context.wallCanvas.width,
+                                context.wallCanvas.height,
+                              ],
+                              canvasContext
+                            );
+                            context.wallTexture.needsUpdate = true;
+                            props.saveWallProgress(context.wallCanvas);
+                          } else {
+                            const canvasContext =
+                              context.fogCanvas.getContext("2d")!;
+                            applyFogRectangle(
+                              FogMode.clear,
+                              false,
+                              [0, 0],
+                              [
+                                context.fogCanvas.width,
+                                context.fogCanvas.height,
+                              ],
+                              canvasContext
+                            );
+                            context.fogTexture.needsUpdate = true;
+                            props.saveFogProgress(context.fogCanvas);
+                          }
                         },
                       })
                     }
@@ -1016,6 +1142,7 @@ export const DmMap = (props: {
                         return;
                       }
                       props.sendLiveMap(context.fogCanvas);
+                      props.sendLiveWall(context.wallCanvas);
                     }}
                   >
                     <Icon.Send boxSize="20px" />

@@ -308,10 +308,21 @@ type Map {
   fogLiveImageUrl: String
 
   """
+  The URL of the wall progress image that is only accessible to the DM.
+  """
+  wallProgressImageUrl: String
+
+  """
+  The URL of the wall live image, that is shown to players.
+  """
+  wallLiveImageUrl: String
+
+  """
   The grid of the map. Is 'null' if no grid has been configured.
   """
   grid: MapGrid
   showGrid: Boolean!
+  light: Boolean!
   showGridToPlayers: Boolean!
   tokens: [MapToken!]!
 }
@@ -337,6 +348,8 @@ type MapToken {
   label: String!
   isVisibleForPlayers: Boolean!
   isMovableByPlayers: Boolean!
+  isLight: Boolean!
+  lightRadius: Float!
   isLocked: Boolean!
   tokenImage: TokenImage
   referenceId: ID
@@ -393,6 +406,11 @@ type Mutation {
   Update the grid of a map.
   """
   mapUpdateGrid(input: MapUpdateGridInput!): MapUpdateGridResult!
+
+  """
+  Update the light of a map.
+  """
+  mapUpdateLight(input: MapUpdateLightInput!): MapUpdateLightResult!
 
   """
   Ping a point on the map.
@@ -584,6 +602,16 @@ input MapTokenUpdateManyPropertiesInput {
   isMovableByPlayers: Boolean
 
   """
+  Set light properties to token.
+  """
+  isLight: Boolean
+
+  """
+  Set light radius properties to token.
+  """
+  lightRadius: Float
+
+  """
   Token image id to be updated. Will be updated if null is provided.
   """
   tokenImageId: ID
@@ -620,6 +648,8 @@ input MapTokenAddManyTokenInput {
   rotation: Float
   isVisibleForPlayers: Boolean
   isMovableByPlayers: Boolean
+  isLight: Boolean
+  lightRadius: Float
   isLocked: Boolean
   tokenImageId: ID
 }
@@ -702,6 +732,15 @@ input GridInput {
   offsetY: Float!
   columnWidth: Float!
   columnHeight: Float!
+}
+
+type MapUpdateLightResult {
+  updatedMap: Map!
+}
+
+input MapUpdateLightInput {
+  mapId: ID!
+  light: Boolean!
 }
 
 input MapPingInput {

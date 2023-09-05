@@ -21,6 +21,12 @@ const prepareToken = (token: { [key: string]: unknown }) => {
   if (token.isMovableByPlayers === undefined) {
     token.isMovableByPlayers = true;
   }
+  if (token.isLight === undefined) {
+    token.isLight = true;
+  }
+  if (token.lightRadius === undefined) {
+    token.lightRadius = 0;
+  }
   if (token.rotation === undefined) {
     token.rotation = 0;
   }
@@ -52,6 +58,8 @@ export type MapTokenEntity = {
   y: number;
   isVisibleForPlayers: boolean;
   isMovableByPlayers: boolean;
+  isLight: boolean;
+  lightRadius: number;
   isLocked: boolean;
   reference: null | {
     type: "note";
@@ -88,6 +96,9 @@ type LegacyMapEntity = {
   title: string;
   fogProgressPath: string;
   fogLivePath: string;
+  wallLivePath: string;
+  wallProgressPath: string;
+  light?: boolean;
   mapPath: string;
   showGrid?: boolean;
   showGridToPlayers?: boolean;
@@ -111,6 +122,11 @@ export type MapEntity = {
   tokens: Array<any>;
   fogLiveRevision: string;
   fogProgressRevision: string;
+  wallLiveRevision: string;
+  wallLivePath: string | null;
+  wallProgressRevision: string;
+  wallProgressPath: string | null;
+  light: boolean;
 };
 
 export class Maps {
@@ -160,7 +176,10 @@ export class Maps {
         mapPath: rawMap.mapPath,
         fogProgressPath: rawMap.fogProgressPath ?? null,
         fogLivePath: rawMap.fogLivePath ?? null,
+        wallProgressPath: rawMap.wallProgressPath ?? null,
+        wallLivePath: rawMap.wallLivePath ?? null,
         showGrid: rawMap.showGrid ?? false,
+        light: rawMap.light ?? true,
         showGridToPlayers: rawMap.showGridToPlayers ?? false,
         grid: prepareGrid(
           rawMap.grid,
@@ -174,6 +193,12 @@ export class Maps {
         fogLiveRevision:
           "fogLiveRevision" in rawMap
             ? rawMap.fogProgressRevision
+            : randomUUID(),
+        wallLiveRevision:
+          "wallLiveRevision" in rawMap ? rawMap.wallLiveRevision : randomUUID(),
+        wallProgressRevision:
+          "wallProgressRevision" in rawMap
+            ? rawMap.wallProgressRevision
             : randomUUID(),
       };
 
@@ -213,6 +238,9 @@ export class Maps {
         fogProgressPath: null,
         // progress becomes live when DM publishes map
         fogLivePath: null,
+        wallProgressPath: null,
+        wallLivePath: null,
+        light: true,
         mapPath,
         grid: null,
         showGrid: false,
@@ -220,6 +248,8 @@ export class Maps {
         tokens: [],
         fogProgressRevision: randomUUID(),
         fogLiveRevision: randomUUID(),
+        wallLiveRevision: randomUUID(),
+        wallProgressRevision: randomUUID(),
       };
 
       await fs.move(filePath, path.join(this._buildMapFolderPath(id), mapPath));
@@ -252,6 +282,33 @@ export class Maps {
         throw new Error(`Map with id "${id}" not found.`);
       }
       return await this._updateMapSettings(map, data);
+    });
+  }
+
+  async updateWallProgressImage(id: string, filePath: string) {
+    return await this._processTask<MapEntity>(`map:${id}`, async () => {
+      const map = this._maps.find((map) => map.id === id);
+      if (!map) {
+        throw new Error(`Map with id "${id}" not found.`);
+      }
+
+      const mapFolderPath = this._buildMapFolderPath(map.id);
+
+      if (map.wallProgressPath) {
+        await fs.remove(path.join(mapFolderPath, map.wallProgressPath));
+      }
+
+      const newMapData = {
+        wallProgressPath: "wall.progress.png",
+        wallProgressRevision: randomUUID(),
+      };
+
+      const fileDestination = path.join(
+        mapFolderPath,
+        newMapData.wallProgressPath
+      );
+      await fs.move(filePath, fileDestination);
+      return await this._updateMapSettings(map, newMapData);
     });
   }
 
@@ -323,6 +380,47 @@ export class Maps {
     });
   }
 
+  async updateWallLiveImage(id: string, filePath: string) {
+    return await this._processTask<MapEntity>(`map:${id}`, async () => {
+      const map = this._maps.find((map) => map.id === id);
+      if (!map) {
+        throw new Error(`Map with id "${id}" not found.`);
+      }
+
+      const newMapData = {
+        wallLivePath: "wall.live.png",
+        wallProgressPath: "wall.progress.png",
+        wallLiveRevision: randomUUID(),
+      };
+
+      if (map.wallProgressPath) {
+        await fs.remove(
+          path.join(this._buildMapFolderPath(map.id), map.wallProgressPath)
+        );
+      }
+      if (map.wallLivePath) {
+        await fs.remove(
+          path.join(this._buildMapFolderPath(map.id), map.wallLivePath)
+        );
+      }
+
+      const livePath = path.join(
+        this._mapsDirectoryPath,
+        id,
+        newMapData.wallLivePath
+      );
+      // prettier-ignore
+      const progressPath = path.join(this._buildMapFolderPath(map.id), newMapData.wallProgressPath);
+
+      await fs.copyFile(filePath, livePath);
+      await fs.move(filePath, progressPath);
+
+      const updatedMap = await this._updateMapSettings(map, newMapData);
+
+      return updatedMap;
+    });
+  }
+
   async updateMapImage(
     id: string,
     {
@@ -359,6 +457,8 @@ export class Maps {
       isLocked?: boolean | null;
       isVisibleForPlayers?: boolean | null;
       isMovableByPlayers?: boolean | null;
+      isLight?: boolean | null;
+      lightRadius?: null | number;
       type?: "entity" | null;
       tokenImageId?: null | string;
       rotation?: number | null;
@@ -383,6 +483,8 @@ export class Maps {
             label: props.label ?? "A",
             isVisibleForPlayers: props.isVisibleForPlayers ?? false,
             isMovableByPlayers: props.isMovableByPlayers ?? false,
+            isLight: props.isLight ?? false,
+            lightRadius: props.lightRadius ?? 0,
             isLocked: props.isLocked ?? false,
             type: props.type ?? "entity",
             tokenImageId: props.tokenImageId ?? null,
@@ -417,6 +519,8 @@ export class Maps {
       isVisibleForPlayers,
       isLocked,
       isMovableByPlayers,
+      isLight,
+      lightRadius,
       title,
       description,
       reference,
@@ -432,6 +536,8 @@ export class Maps {
       isVisibleForPlayers?: boolean;
       isLocked?: boolean;
       isMovableByPlayers?: boolean;
+      isLight?: boolean;
+      lightRadius?: number,
       title?: string;
       description?: string;
       reference?:
@@ -493,6 +599,12 @@ export class Maps {
         if (isMovableByPlayers !== undefined) {
           token.isMovableByPlayers = isMovableByPlayers;
         }
+        if (isLight !== undefined) {
+          token.isLight = isLight;
+        }
+        if (lightRadius !== undefined) {
+          token.lightRadius = lightRadius;
+        }
         if (reference !== undefined) {
           if (reference === null) {
             token.reference = null;
@@ -529,6 +641,8 @@ export class Maps {
       color: string | undefined;
       isVisibleForPlayers: boolean | undefined;
       isMovableByPlayers: boolean | undefined;
+      isLight: boolean | undefined;
+      lightRadius: number | undefined;
       tokenImageId: string | null | undefined;
       rotation: number | undefined;
     }
@@ -560,6 +674,12 @@ export class Maps {
         }
         if (props.isMovableByPlayers != null) {
           token.isMovableByPlayers = props.isMovableByPlayers;
+        }
+        if (props.isLight != null) {
+          token.isLight = props.isLight;
+        }
+        if (props.lightRadius != null) {
+          token.lightRadius = props.lightRadius;
         }
         if (props.tokenImageId !== undefined) {
           token.tokenImageId = props.tokenImageId;
